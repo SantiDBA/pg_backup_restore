@@ -1,9 +1,26 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-import subprocess
 import threading
 import sys
 import os
+import io
+
+# Import the logic modules directly
+import backup_postgres
+import restore_postgres
+
+class RedirectText(io.StringIO):
+    """Callback-based stream to redirect stdout/stderr to the GUI."""
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def write(self, s):
+        if s:
+            self.callback(s)
+
+    def flush(self):
+        pass
 
 class PgBackupRestoreApp:
     def __init__(self, root):
@@ -14,7 +31,7 @@ class PgBackupRestoreApp:
         # Variables
         self.host_var = tk.StringVar(value="localhost")
         self.port_var = tk.IntVar(value=5432)
-        self.username_var = tk.StringVar()
+        self.username_var = tk.StringVar(value="postgres")
         self.password_var = tk.StringVar()
         
         # Backup Variables
@@ -121,96 +138,116 @@ class PgBackupRestoreApp:
         if f:
             self.restore_zip_var.set(f)
 
-    def log(self, message):
+    def log_safe(self, message):
+        """Append text to the log widget in a thread-safe way."""
+        self.log_text.after(0, self._log_insert, message)
+
+    def _log_insert(self, message):
         self.log_text.config(state="normal")
-        self.log_text.insert("end", message + "\n")
+        self.log_text.insert("end", message)
+        if not message.endswith('\n'):
+             self.log_text.insert("end", "\n")
         self.log_text.see("end")
         self.log_text.config(state="disabled")
 
-    def run_command_thread(self, cmd):
-        self.log(f"Running command: {' '.join(cmd)}")
+    def run_backup_thread(self, host, port, db, user, password, backup_dir, retention, dry_run):
+        # Redirect stdout and stderr to our log
+        original_stdout = sys.stdout
+        original_stderr = sys.stderr
+        
+        sys.stdout = RedirectText(self.log_safe)
+        sys.stderr = RedirectText(self.log_safe)
+        
+        self.log_safe(f"Starting backup for {db}...\n")
+        
         try:
-            # We must pass subprocess.PIPE to capture output
-            process = subprocess.Popen(
-                cmd, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.STDOUT, 
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+            backup_postgres.backup_postgres(
+                host=host,
+                port=port,
+                database=db,
+                username=user,
+                password=password,
+                backup_dir=backup_dir,
+                retention_days=retention,
+                dry_run=dry_run
             )
-            
-            for line in process.stdout:
-                self.log(line.strip())
-            
-            process.wait()
-            if process.returncode == 0:
-                self.log("SUCCESS")
-                messagebox.showinfo("Success", "Operation completed successfully!")
-            else:
-                self.log(f"FAILED with return code {process.returncode}")
-                messagebox.showerror("Error", "Operation failed. Check logs.")
+            self.log_safe("SUCCESS\n")
+            messagebox.showinfo("Success", "Backup completed successfully!")
         except Exception as e:
-            self.log(f"EXCEPTION: {e}")
-            messagebox.showerror("Error", f"An error occurred: {e}")
+            self.log_safe(f"FAILED: {e}\n")
+            messagebox.showerror("Error", f"Backup failed: {e}")
+        finally:
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+
+    def run_restore_thread(self, host, port, db, user, password, zip_file, auto_confirm, dry_run):
+        original_stdout = sys.stdout
+        original_stderr = sys.stderr
+        
+        sys.stdout = RedirectText(self.log_safe)
+        sys.stderr = RedirectText(self.log_safe)
+        
+        self.log_safe(f"Starting restore for {db}...\n")
+        
+        try:
+            restore_postgres.restore_postgres(
+                host=host,
+                port=port,
+                target_database=db,
+                username=user,
+                password=password,
+                zip_file=zip_file,
+                auto_confirm=auto_confirm,
+                dry_run=dry_run
+            )
+            self.log_safe("SUCCESS\n")
+            messagebox.showinfo("Success", "Restore completed successfully!")
+        except Exception as e:
+            self.log_safe(f"FAILED: {e}\n")
+            messagebox.showerror("Error", f"Restore failed: {e}")
+        finally:
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
 
     def run_backup(self):
         host = self.host_var.get()
-        port = str(self.port_var.get())
+        port = self.port_var.get()
         user = self.username_var.get()
         password = self.password_var.get()
         db = self.backup_db_var.get()
         directory = self.backup_dir_var.get()
-        retention = str(self.retention_var.get())
+        retention = self.retention_var.get()
+        dry_run = self.backup_dry_run_var.get()
 
         if not all([host, port, user, db]):
             messagebox.showwarning("Validation", "Please fill in all required fields.")
             return
 
-        cmd = [
-            sys.executable, "backup_postgres.py",
-            "--host", host,
-            "--port", port,
-            "--username", user,
-            "--password", password,
-            "--database", db,
-            "--backup-dir", directory,
-            "--retention-days", retention
-        ]
-
-        if self.backup_dry_run_var.get():
-            cmd.append("--dry-run")
-
-        threading.Thread(target=self.run_command_thread, args=(cmd,), daemon=True).start()
+        threading.Thread(
+            target=self.run_backup_thread, 
+            args=(host, int(port), db, user, password, directory, int(retention), dry_run), 
+            daemon=True
+        ).start()
 
     def run_restore(self):
         host = self.host_var.get()
-        port = str(self.port_var.get())
+        port = self.port_var.get()
         user = self.username_var.get()
         password = self.password_var.get()
         db = self.restore_target_db_var.get()
         zip_file = self.restore_zip_var.get()
+        dry_run = self.restore_dry_run_var.get()
+        auto_confirm = self.restore_yes_var.get()
 
         if not all([host, port, user, db, zip_file]):
             messagebox.showwarning("Validation", "Please fill in all required fields.")
             return
 
-        cmd = [
-            sys.executable, "restore_postgres.py",
-            "--host", host,
-            "--port", port,
-            "--username", user,
-            "--password", password,
-            "--target-database", db,
-            "--zip-file", zip_file
-        ]
-
-        if self.restore_dry_run_var.get():
-            cmd.append("--dry-run")
-        
-        if self.restore_yes_var.get():
-            cmd.append("--yes")
-
-        threading.Thread(target=self.run_command_thread, args=(cmd,), daemon=True).start()
+        threading.Thread(
+            target=self.run_restore_thread,
+            args=(host, int(port), db, user, password, zip_file, auto_confirm, dry_run),
+            daemon=True
+        ).start()
 
 if __name__ == "__main__":
     root = tk.Tk()

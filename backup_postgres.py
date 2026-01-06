@@ -48,7 +48,7 @@ def backup_postgres(host, port, database, username, password, backup_dir=".", re
         msg = "pg_dump not found in PATH. Aborting."
         print(msg)
         logging.error(msg)
-        sys.exit(1)
+        raise EnvironmentError(msg)
 
     # Ensure backup dir exists
     os.makedirs(backup_dir, exist_ok=True)
@@ -102,7 +102,7 @@ def backup_postgres(host, port, database, username, password, backup_dir=".", re
         if os.path.exists(zip_path):
             os.remove(zip_path)
             logging.info(f"Cleaned up incomplete zip file: {zip_path}")
-        sys.exit(1)
+        raise
     except Exception as e:
         msg = f"An unexpected error occurred: {e}"
         print(msg)
@@ -110,7 +110,7 @@ def backup_postgres(host, port, database, username, password, backup_dir=".", re
         if os.path.exists(zip_path):
             os.remove(zip_path)
             logging.info(f"Cleaned up incomplete zip file: {zip_path}")
-        sys.exit(1)
+        raise
     finally:
         if os.path.exists(dump_path):
             os.remove(dump_path)

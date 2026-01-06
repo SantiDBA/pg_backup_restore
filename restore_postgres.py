@@ -31,7 +31,7 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
         msg = "Required PostgreSQL commands (psql/createdb/dropdb) not found in PATH."
         print(msg)
         logging.error(msg)
-        sys.exit(1)
+        raise EnvironmentError(msg)
 
     # 1. Unzip the file
     print(f"Unzipping {zip_file}...")
@@ -48,7 +48,7 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
                 msg = "Error: No .sql file found in the zip archive."
                 print(msg)
                 logging.error(msg)
-                sys.exit(1)
+                raise ValueError(msg)
 
             zip_ref.extract(sql_file)
             sql_file_path = sql_file
@@ -58,12 +58,12 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
         msg = "Error: Invalid zip file."
         print(msg)
         logging.error(msg)
-        sys.exit(1)
+        raise
     except Exception as e:
         msg = f"Error extracting zip: {e}"
         print(msg)
         logging.error(msg)
-        sys.exit(1)
+        raise
 
     # Set password in environment variable for all libpq commands
     env = os.environ.copy()
@@ -125,13 +125,14 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
                         print(f"Database '{target_database}' is being accessed by other users.")
                         log_msg = "Active sessions detected. Cannot drop."
                         print(log_msg)
+                        print(log_msg)
                         logging.info(log_msg)
-                        sys.exit(1)
+                        raise RuntimeError(log_msg)
                     else:
                         msg = f"Error dropping database: {stderr}"
                         print(msg)
                         logging.error(msg)
-                        sys.exit(1)
+                        raise RuntimeError(msg)
 
                 # Re-create
                 try:
@@ -142,17 +143,17 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
                     msg = f"Error re-creating database: {e3.stderr.decode() if e3.stderr else ''}"
                     print(msg)
                     logging.error(msg)
-                    sys.exit(1)
+                    raise RuntimeError(msg)
             else:
                 msg = "Restore cancelled by user."
                 print(msg)
                 logging.info(msg)
-                sys.exit(0)
+                return
         else:
             msg = f"Error creating database: {stderr}"
             print(msg)
             logging.error(msg)
-            sys.exit(1)
+            raise RuntimeError(msg)
 
     # 3. Restore using psql
     print(f"Restoring data into '{target_database}'...")
@@ -174,7 +175,7 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
         msg = f"Error running psql: {e}"
         print(msg)
         logging.error(msg)
-        sys.exit(1)
+        raise
     finally:
         # 4. Cleanup
         if os.path.exists(sql_file_path):
