@@ -6,6 +6,7 @@ import logging
 import shutil
 import getpass
 import subprocess
+import tempfile
 
 # Logging is configured in the main block or by the importing application
 
@@ -38,6 +39,7 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
 
     # 1. Unzip the file
     print(f"Unzipping {zip_file}...")
+    temp_dir_obj = tempfile.TemporaryDirectory()
     try:
         with zipfile.ZipFile(zip_file, 'r') as zip_ref:
             file_list = zip_ref.namelist()
@@ -53,16 +55,18 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
                 logging.error(msg)
                 raise ValueError(msg)
 
-            zip_ref.extract(sql_file)
-            sql_file_path = sql_file
+            zip_ref.extract(sql_file, path=temp_dir_obj.name)
+            sql_file_path = os.path.join(temp_dir_obj.name, sql_file)
             print(f"Extracted: {sql_file_path}")
             logging.info(f"Extracted: {sql_file_path}")
     except zipfile.BadZipFile:
+        temp_dir_obj.cleanup()
         msg = "Error: Invalid zip file."
         print(msg)
         logging.error(msg)
         raise
     except Exception as e:
+        temp_dir_obj.cleanup()
         msg = f"Error extracting zip: {e}"
         print(msg)
         logging.error(msg)
@@ -182,10 +186,10 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
         raise
     finally:
         # 4. Cleanup
-        if os.path.exists(sql_file_path):
-            os.remove(sql_file_path)
-            print(f"Cleaned up temporary file: {sql_file_path}")
-            logging.info(f"Cleaned up temporary file: {sql_file_path}")
+        if 'temp_dir_obj' in locals():
+            temp_dir_obj.cleanup()
+            print("Cleaned up temporary extraction directory.")
+            logging.info("Cleaned up temporary extraction directory.")
 
 
 if __name__ == "__main__":
