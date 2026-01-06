@@ -10,12 +10,8 @@ import glob
 import shutil
 import getpass
 
-# Configure logging
-logging.basicConfig(
-    filename='backup_postgres.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Logging is configured in the main block or by the importing application
+
 
 
 def cleanup_old_backups(database, retention_days=30, backup_dir="."):
@@ -136,5 +132,12 @@ if __name__ == "__main__":
         pwd = args.password
     else:
         pwd = getpass.getpass("Database password: ")
+
+    # Configure logging for CLI usage
+    logging.basicConfig(
+        filename='backup_postgres.log',
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
     backup_postgres(args.host, args.port, args.database, args.username, pwd, backup_dir=args.backup_dir, retention_days=args.retention_days, dry_run=args.dry_run)

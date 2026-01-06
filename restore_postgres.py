@@ -7,12 +7,8 @@ import shutil
 import getpass
 import subprocess
 
-# Configure logging
-logging.basicConfig(
-    filename='restore_postgres.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Logging is configured in the main block or by the importing application
+
 
 
 def restore_postgres(host, port, target_database, username, password, zip_file, auto_confirm=False, dry_run=False):
@@ -198,6 +194,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     password = args.password if args.password is not None else getpass.getpass("Database password: ")
+
+    # Configure logging for CLI usage
+    logging.basicConfig(
+        filename='restore_postgres.log',
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
     restore_postgres(
         args.host,
