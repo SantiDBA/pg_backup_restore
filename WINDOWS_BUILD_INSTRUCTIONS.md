@@ -44,10 +44,10 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         
@@ -61,7 +61,7 @@ jobs:
         pyinstaller --noconsole --onefile --name "PostgresManager" pg_backup_restore_gui.py
         
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: PostgresManager-Windows
         path: dist/PostgresManager.exe
