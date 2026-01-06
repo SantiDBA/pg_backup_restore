@@ -35,13 +35,19 @@ def cleanup_old_backups(database, retention_days=30, backup_dir="."):
             print(f"Error deleting old backup {f}: {e}")
 
 
-def backup_postgres(host, port, database, username, password, backup_dir=".", retention_days=30, dry_run=False):
+def backup_postgres(host, port, database, username, password, backup_dir=".", retention_days=30, dry_run=False, bin_dir=None):
     """Backs up a PostgreSQL database to a zipped archive."""
     logging.info(f"Starting backup for database '{database}' on {host}:{port}")
 
-    # Preflight checks
-    if shutil.which("pg_dump") is None:
-        msg = "pg_dump not found in PATH. Aborting."
+    # Resolve pg_dump path
+    pg_dump_path = "pg_dump"
+    if bin_dir:
+        pg_dump_path = os.path.join(bin_dir, "pg_dump")
+        if sys.platform == "win32" and not pg_dump_path.lower().endswith(".exe"):
+            pg_dump_path += ".exe"
+
+    if shutil.which(pg_dump_path) is None:
+        msg = f"'{pg_dump_path}' not found. Please install PostgreSQL tools or check the bin path."
         print(msg)
         logging.error(msg)
         raise EnvironmentError(msg)
@@ -59,7 +65,7 @@ def backup_postgres(host, port, database, username, password, backup_dir=".", re
     env['PGPASSWORD'] = password
 
     pg_dump_cmd = [
-        'pg_dump',
+        pg_dump_path,
         '-h', host,
         '-p', str(port),
         '-U', username,
@@ -125,6 +131,8 @@ if __name__ == "__main__":
     parser.add_argument("--retention-days", type=int, default=30, help="Retention days for backups")
     parser.add_argument("--dry-run", action="store_true", help="Run in dry-run mode (no changes)" )
 
+    parser.add_argument("--bin-dir", help="Directory containing PostgreSQL binaries (pg_dump)")
+
     args = parser.parse_args()
 
     # Password handling: prompt if omitted
@@ -140,4 +148,4 @@ if __name__ == "__main__":
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
-    backup_postgres(args.host, args.port, args.database, args.username, pwd, backup_dir=args.backup_dir, retention_days=args.retention_days, dry_run=args.dry_run)
+    backup_postgres(args.host, args.port, args.database, args.username, pwd, backup_dir=args.backup_dir, retention_days=args.retention_days, dry_run=args.dry_run, bin_dir=args.bin_dir)

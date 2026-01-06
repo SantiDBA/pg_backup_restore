@@ -26,13 +26,14 @@ class PgBackupRestoreApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Postgres Backup & Restore Manager")
-        self.root.geometry("600x700")
+        self.root.geometry("600x750")
 
         # Variables
         self.host_var = tk.StringVar(value="localhost")
         self.port_var = tk.IntVar(value=5432)
         self.username_var = tk.StringVar(value="postgres")
         self.password_var = tk.StringVar()
+        self.bin_dir_var = tk.StringVar()
         
         # Backup Variables
         self.backup_db_var = tk.StringVar()
@@ -65,6 +66,13 @@ class PgBackupRestoreApp:
         ttk.Label(conn_frame, text="Password:").grid(row=1, column=2, sticky="w", padx=5, pady=2)
         ttk.Entry(conn_frame, textvariable=self.password_var, show="*").grid(row=1, column=3, sticky="ew", padx=5, pady=2)
         
+        # Postgres Bin Path
+        ttk.Label(conn_frame, text="Postgres Bin:").grid(row=2, column=0, sticky="w", padx=5, pady=2)
+        bin_frame = ttk.Frame(conn_frame)
+        bin_frame.grid(row=2, column=1, columnspan=3, sticky="ew", padx=5, pady=2)
+        ttk.Entry(bin_frame, textvariable=self.bin_dir_var).pack(side="left", fill="x", expand=True)
+        ttk.Button(bin_frame, text="Browse", command=self.browse_bin_dir).pack(side="left", padx=5)
+
         conn_frame.columnconfigure(1, weight=1)
 
         # Tabs
@@ -128,6 +136,11 @@ class PgBackupRestoreApp:
         
         self.restore_frame.columnconfigure(1, weight=1)
 
+    def browse_bin_dir(self):
+        d = filedialog.askdirectory()
+        if d:
+            self.bin_dir_var.set(d)
+
     def browse_backup_dir(self):
         d = filedialog.askdirectory()
         if d:
@@ -150,7 +163,7 @@ class PgBackupRestoreApp:
         self.log_text.see("end")
         self.log_text.config(state="disabled")
 
-    def run_backup_thread(self, host, port, db, user, password, backup_dir, retention, dry_run):
+    def run_backup_thread(self, host, port, db, user, password, backup_dir, retention, dry_run, bin_dir):
         # Redirect stdout and stderr to our log
         original_stdout = sys.stdout
         original_stderr = sys.stderr
@@ -169,7 +182,8 @@ class PgBackupRestoreApp:
                 password=password,
                 backup_dir=backup_dir,
                 retention_days=retention,
-                dry_run=dry_run
+                dry_run=dry_run,
+                bin_dir=bin_dir
             )
             self.log_safe("SUCCESS\n")
             messagebox.showinfo("Success", "Backup completed successfully!")
@@ -180,7 +194,7 @@ class PgBackupRestoreApp:
             sys.stdout = original_stdout
             sys.stderr = original_stderr
 
-    def run_restore_thread(self, host, port, db, user, password, zip_file, auto_confirm, dry_run):
+    def run_restore_thread(self, host, port, db, user, password, zip_file, auto_confirm, dry_run, bin_dir):
         original_stdout = sys.stdout
         original_stderr = sys.stderr
         
@@ -198,7 +212,8 @@ class PgBackupRestoreApp:
                 password=password,
                 zip_file=zip_file,
                 auto_confirm=auto_confirm,
-                dry_run=dry_run
+                dry_run=dry_run,
+                bin_dir=bin_dir
             )
             self.log_safe("SUCCESS\n")
             messagebox.showinfo("Success", "Restore completed successfully!")
@@ -218,6 +233,7 @@ class PgBackupRestoreApp:
         directory = self.backup_dir_var.get()
         retention = self.retention_var.get()
         dry_run = self.backup_dry_run_var.get()
+        bin_dir = self.bin_dir_var.get()
 
         if not all([host, port, user, db]):
             messagebox.showwarning("Validation", "Please fill in all required fields.")
@@ -225,7 +241,7 @@ class PgBackupRestoreApp:
 
         threading.Thread(
             target=self.run_backup_thread, 
-            args=(host, int(port), db, user, password, directory, int(retention), dry_run), 
+            args=(host, int(port), db, user, password, directory, int(retention), dry_run, bin_dir), 
             daemon=True
         ).start()
 
@@ -238,6 +254,7 @@ class PgBackupRestoreApp:
         zip_file = self.restore_zip_var.get()
         dry_run = self.restore_dry_run_var.get()
         auto_confirm = self.restore_yes_var.get()
+        bin_dir = self.bin_dir_var.get()
 
         if not all([host, port, user, db, zip_file]):
             messagebox.showwarning("Validation", "Please fill in all required fields.")
@@ -245,7 +262,7 @@ class PgBackupRestoreApp:
 
         threading.Thread(
             target=self.run_restore_thread,
-            args=(host, int(port), db, user, password, zip_file, auto_confirm, dry_run),
+            args=(host, int(port), db, user, password, zip_file, auto_confirm, dry_run, bin_dir),
             daemon=True
         ).start()
 

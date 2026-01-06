@@ -11,23 +11,30 @@ import subprocess
 
 
 
-def restore_postgres(host, port, target_database, username, password, zip_file, auto_confirm=False, dry_run=False):
+def restore_postgres(host, port, target_database, username, password, zip_file, auto_confirm=False, dry_run=False, bin_dir=None):
     """Restores a PostgreSQL database from a ZIP file."""
     logging.info(f"Starting restore for database '{target_database}' from {zip_file}")
 
-    # Dry-run: show planned steps without performing actions
-    if dry_run:
-        print("[DRY-RUN] Restore would perform with:")
-        print(f"  host={host}, port={port}, target_database={target_database}, zip_file={zip_file}")
-        print("  Would unzip the archive, locate SQL, create/replace database, and run psql to restore.")
-        return
+    # Resolve binary paths
+    def get_bin(name):
+        if not bin_dir:
+            return name
+        path = os.path.join(bin_dir, name)
+        if sys.platform == "win32" and not path.lower().endswith(".exe"):
+            path += ".exe"
+        return path
+
+    psql_bin = get_bin("psql")
+    createdb_bin = get_bin("createdb")
+    dropdb_bin = get_bin("dropdb")
 
     # Preflight: ensure required binaries exist
-    if shutil.which("psql") is None or shutil.which("createdb") is None or shutil.which("dropdb") is None:
-        msg = "Required PostgreSQL commands (psql/createdb/dropdb) not found in PATH."
-        print(msg)
-        logging.error(msg)
-        raise EnvironmentError(msg)
+    for b in [psql_bin, createdb_bin, dropdb_bin]:
+        if shutil.which(b) is None:
+            msg = f"Required command '{b}' not found. Please check bin path."
+            print(msg)
+            logging.error(msg)
+            raise EnvironmentError(msg)
 
     # 1. Unzip the file
     print(f"Unzipping {zip_file}...")
@@ -69,7 +76,7 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
     print(f"Checking/Creating database '{target_database}'...")
 
     createdb_cmd = [
-        'createdb',
+        createdb_bin,
         '-h', host,
         '-p', str(port),
         '-U', username,
@@ -93,7 +100,7 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
                 logging.info(f"Auto-replacing database '{target_database}' due to --yes.")
 
                 dropdb_cmd = [
-                    'dropdb',
+                    dropdb_bin,
                     '-h', host,
                     '-p', str(port),
                     '-U', username,
@@ -102,7 +109,7 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
 
                 def kill_sessions():
                     kill_cmd = [
-                        'psql',
+                        psql_bin,
                         '-h', host,
                         '-p', str(port),
                         '-U', username,
@@ -155,7 +162,7 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
     print(f"Restoring data into '{target_database}'...")
 
     psql_cmd = [
-        'psql',
+        psql_bin,
         '-h', host,
         '-p', str(port),
         '-U', username,
@@ -191,6 +198,8 @@ if __name__ == "__main__":
     parser.add_argument("--yes", action="store_true", help="Automatically confirm destructive prompts")
     parser.add_argument("--dry-run", action="store_true", help="Run in dry-run mode (no changes)")
 
+    parser.add_argument("--bin-dir", help="Directory containing PostgreSQL binaries (psql, createdb, dropdb)")
+
     args = parser.parse_args()
 
     password = args.password if args.password is not None else getpass.getpass("Database password: ")
@@ -211,4 +220,5 @@ if __name__ == "__main__":
         args.zip_file,
         auto_confirm=args.yes,
         dry_run=args.dry_run,
+        bin_dir=args.bin_dir,
     )
