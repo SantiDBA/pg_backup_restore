@@ -98,7 +98,8 @@ def backup_postgres(host, port, database, username, password, backup_dir=".", re
         cleanup_old_backups(database, retention_days=retention_days, backup_dir=backup_dir)
 
     except subprocess.CalledProcessError as e:
-        msg = f"Error running pg_dump: {e}"
+        stderr = e.stderr.decode() if e.stderr else "No error output"
+        msg = f"Error running pg_dump:\n{stderr}"
         print(msg)
         logging.error(msg)
         if os.path.exists(zip_path):

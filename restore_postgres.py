@@ -175,7 +175,8 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
         print("Restore completed successfully.")
         logging.info("Restore completed successfully.")
     except subprocess.CalledProcessError as e:
-        msg = f"Error running psql: {e}"
+        stderr = e.stderr.decode() if e.stderr else "No error output"
+        msg = f"Error running psql:\n{stderr}"
         print(msg)
         logging.error(msg)
         raise
