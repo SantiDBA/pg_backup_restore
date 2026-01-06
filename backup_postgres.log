@@ -1,0 +1,11 @@
+2025-12-01 14:47:43,933 - INFO - Starting backup for database 'postgres' on localhost:5432
+2025-12-01 14:47:44,385 - INFO - Database dump created successfully: postgres_20251201.sql
+2025-12-01 14:47:44,388 - INFO - Backup saved successfully: postgres_20251201.zip
+2025-12-01 14:47:44,388 - INFO - Starting cleanup of backups older than 30 days for database 'postgres'...
+2025-12-01 14:47:44,389 - INFO - Deleted old backup: postgres_20230101.zip
+2025-12-01 14:47:44,390 - INFO - Cleaned up temporary file: postgres_20251201.sql
+2025-12-01 14:56:07,019 - INFO - Starting backup for database 'postgres' on localhost:5432
+2025-12-01 14:56:07,467 - INFO - Database dump created successfully: postgres_20251201_145607.sql
+2025-12-01 14:56:07,469 - INFO - Backup saved successfully: postgres_20251201_145607.zip
+2025-12-01 14:56:07,470 - INFO - Starting cleanup of backups older than 30 days for database 'postgres'...
+2025-12-01 14:56:07,470 - INFO - Cleaned up temporary file: postgres_20251201_145607.sql
