@@ -99,63 +99,72 @@ def restore_postgres(host, port, target_database, username, password, zip_file, 
             logging.info(f"Database '{target_database}' already exists.")
 
             # Interactive confirmation or auto-confirm
-            if auto_confirm:
-                print(f"Replacing database '{target_database}' as --yes was provided.")
-                logging.info(f"Auto-replacing database '{target_database}' due to --yes.")
+            if not auto_confirm:
+                confirm = input(f"Database '{target_database}' already exists. Replace it? (y/n): ")
+                if confirm.lower() != 'y':
+                    msg = "Restore cancelled by user."
+                    print(msg)
+                    logging.info(msg)
+                    return
 
-                dropdb_cmd = [
-                    dropdb_bin,
+            print(f"Replacing database '{target_database}'...")
+            logging.info(f"Replacing database '{target_database}'.")
+
+            dropdb_cmd = [
+                dropdb_bin,
+                '-h', host,
+                '-p', str(port),
+                '-U', username,
+                target_database
+            ]
+
+            def kill_sessions():
+                kill_cmd = [
+                    psql_bin,
                     '-h', host,
                     '-p', str(port),
                     '-U', username,
-                    target_database
+                    '-d', 'postgres',
+                    '-c', f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{target_database}' AND pid <> pg_backend_pid();"
                 ]
+                subprocess.run(kill_cmd, env=env, check=True, capture_output=True)
 
-                def kill_sessions():
-                    kill_cmd = [
-                        psql_bin,
-                        '-h', host,
-                        '-p', str(port),
-                        '-U', username,
-                        '-d', 'postgres',
-                        '-c', f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{target_database}' AND pid <> pg_backend_pid();"
-                    ]
-                    subprocess.run(kill_cmd, env=env, check=True, capture_output=True)
-
-                try:
-                    subprocess.run(dropdb_cmd, env=env, check=True, capture_output=True)
-                    print(f"Database '{target_database}' dropped.")
-                    logging.info(f"Database '{target_database}' dropped.")
-                except subprocess.CalledProcessError as e2:
-                    stderr = e2.stderr.decode() if e2.stderr else ""
-                    if "accessed by other users" in stderr:
-                        print(f"Database '{target_database}' is being accessed by other users.")
-                        log_msg = "Active sessions detected. Cannot drop."
+            try:
+                subprocess.run(dropdb_cmd, env=env, check=True, capture_output=True)
+                print(f"Database '{target_database}' dropped.")
+                logging.info(f"Database '{target_database}' dropped.")
+            except subprocess.CalledProcessError as e2:
+                stderr = e2.stderr.decode() if e2.stderr else ""
+                if "accessed by other users" in stderr:
+                    print(f"Database '{target_database}' is being accessed by other users.")
+                    # Try to kill sessions and drop again
+                    try:
+                        print("Attempting to terminate active sessions...")
+                        kill_sessions()
+                        subprocess.run(dropdb_cmd, env=env, check=True, capture_output=True)
+                        print(f"Database '{target_database}' dropped after terminating sessions.")
+                    except Exception as e_kill:
+                        log_msg = f"Failed to drop database even after attempt to kill sessions: {e_kill}"
                         print(log_msg)
-                        print(log_msg)
-                        logging.info(log_msg)
+                        logging.error(log_msg)
                         raise RuntimeError(log_msg)
-                    else:
-                        msg = f"Error dropping database: {stderr}"
-                        print(msg)
-                        logging.error(msg)
-                        raise RuntimeError(msg)
-
-                # Re-create
-                try:
-                    subprocess.run(createdb_cmd, env=env, check=True, capture_output=True)
-                    print(f"Database '{target_database}' re-created.")
-                    logging.info(f"Database '{target_database}' re-created.")
-                except subprocess.CalledProcessError as e3:
-                    msg = f"Error re-creating database: {e3.stderr.decode() if e3.stderr else ''}"
+                else:
+                    msg = f"Error dropping database: {stderr}"
                     print(msg)
                     logging.error(msg)
                     raise RuntimeError(msg)
-            else:
-                msg = "Restore cancelled by user."
+
+            # Re-create
+            try:
+                subprocess.run(createdb_cmd, env=env, check=True, capture_output=True)
+                print(f"Database '{target_database}' re-created.")
+                logging.info(f"Database '{target_database}' re-created.")
+            except subprocess.CalledProcessError as e3:
+                msg = f"Error re-creating database: {e3.stderr.decode() if e3.stderr else ''}"
                 print(msg)
-                logging.info(msg)
-                return
+                logging.error(msg)
+                raise RuntimeError(msg)
+
         else:
             msg = f"Error creating database: {stderr}"
             print(msg)

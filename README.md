@@ -6,6 +6,7 @@ A set of Python scripts to automate the backup and restoration of PostgreSQL dat
 
 - **Automated Backup**: Create compressed (`.zip`) SQL dumps of your PostgreSQL databases.
 - **Retention Policy**: Automatically clean up old backups based on a configurable number of days.
+- **Scheduled Backups**: Easy setup for automatic backups on Windows using Task Scheduler.
 - **Interactive Restore**: Safely restore databases from zip archives, with protections against accidental overwrites.
 - **Logging**: Comprehensive logging for both backup and restore operations (`backup_postgres.log` and `restore_postgres.log`).
 - **Dry Run**: Preview actions before they are executed.
@@ -97,3 +98,11 @@ python3 restore_postgres.py --host localhost --port 5432 --target-database my_re
 - Restore logs are saved to `restore_postgres.log`.
 
 These files contain timestamps, status messages, and error details for every run.
+
+## Automated Scheduling (Windows)
+
+To run the backup script automatically (e.g., daily), use Windows Task Scheduler. 
+
+See the detailed guide: [SCHEDULING_WINDOWS.md](file:///Users/Santix/Documents/GitHub/pg_backup_restore/SCHEDULING_WINDOWS.md)
+
+A template batch script is also provided: [run_backup_template.bat](file:///Users/Santix/Documents/GitHub/pg_backup_restore/run_backup_template.bat)
